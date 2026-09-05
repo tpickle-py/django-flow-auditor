@@ -41,6 +41,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
+    "pytest-cov>=7.1.0",
     "pytest-django>=4.8.0",
     "ruff>=0.4.0",
     "vulture>=2.11",
@@ -54,7 +55,8 @@ pythonpath = [".", "src"]
 DJANGO_SETTINGS_MODULE = "tests.settings"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --cov=src/flow_auditor --cov-report=term-missing"
+
 
 [tool.ruff]
 line-length = 100
@@ -81,3 +83,22 @@ known-first-party = ["flow_auditor"]
 min_confidence = 80
 paths = ["src/flow_auditor"]
 exclude = ["*migrations*"]
+
+[tool.coverage.run]
+source = ["src/flow_auditor"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+fail_under = 80
+

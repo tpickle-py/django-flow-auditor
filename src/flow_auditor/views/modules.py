@@ -22,4 +22,3 @@ class ModulesListView(APIView):
         registry = get_default_registry()
         modules = registry.list_modules()
         return Response({"success": True, "data": {"modules": modules}})
-

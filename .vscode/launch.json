@@ -13,6 +13,19 @@
       "justMyCode": false
     },
     {
+      "name": "Python: Pytest with Coverage",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": [
+        "--cov=src/flow_auditor",
+        "--cov-report=term-missing",
+        "tests"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
       "name": "Python: Pytest Current File",
       "type": "debugpy",
       "request": "launch",

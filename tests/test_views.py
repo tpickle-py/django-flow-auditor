@@ -127,3 +127,109 @@ def test_admin_retention_trigger(api_client, admin_user):
     response = api_client.post(url, {"days": 30}, format="json")
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["success"] is True
+
+
+@pytest.mark.django_db
+def test_job_list_filtering(api_client):
+    Job.objects.create(
+        module_slug="cisco-asa-parser",
+        tenant_id="tenant-a",
+        status=JobStatus.QUEUED,
+        normalized_hash="hash1",
+    )
+    Job.objects.create(
+        module_slug="juniper-srx-parser",
+        tenant_id="tenant-b",
+        status=JobStatus.COMPLETED,
+        normalized_hash="hash2",
+    )
+
+    resp = api_client.get("/jobs/?status=queued")
+    assert resp.status_code == status.HTTP_200_OK
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["module"] == "cisco-asa-parser"
+
+    resp2 = api_client.get("/jobs/?module=juniper-srx-parser")
+    assert resp2.status_code == status.HTTP_200_OK
+    assert len(resp2.json()) == 1
+
+    resp3 = api_client.get("/jobs/?tenant=tenant-a")
+    assert resp3.status_code == status.HTTP_200_OK
+    assert len(resp3.json()) == 1
+
+
+@pytest.mark.django_db
+def test_job_cancel_edge_cases(api_client):
+    # Non-existent
+    resp = api_client.post("/jobs/00000000-0000-0000-0000-000000000000/cancel/")
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+    # Already completed
+    job = Job.objects.create(
+        module_slug="cisco-asa-parser",
+        status=JobStatus.COMPLETED,
+        normalized_hash="hash3",
+    )
+    resp = api_client.post(f"/jobs/{job.id}/cancel/")
+    assert resp.status_code == status.HTTP_409_CONFLICT
+
+    # Running job request cancel
+    job.status = JobStatus.RUNNING
+    job.save()
+    resp = api_client.post(f"/jobs/{job.id}/cancel/")
+    assert resp.status_code == status.HTTP_200_OK
+    job.refresh_from_db()
+    assert job.status == JobStatus.CANCEL_REQUESTED
+
+
+@pytest.mark.django_db
+def test_job_events_view(api_client):
+    job = Job.objects.create(
+        module_slug="cisco-asa-parser",
+        status=JobStatus.QUEUED,
+        normalized_hash="hash4",
+    )
+    from flow_auditor.models import ActorType, JobEvent
+
+    JobEvent.objects.create(
+        job=job,
+        event_type="job.created",
+        actor_type=ActorType.SYSTEM,
+        actor_id="system",
+    )
+
+    resp = api_client.get(f"/jobs/{job.id}/events/")
+    assert resp.status_code == status.HTTP_200_OK
+    events = resp.json()["events"]
+    assert len(events) == 1
+
+    resp_404 = api_client.get("/jobs/00000000-0000-0000-0000-000000000000/events/")
+    assert resp_404.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_admin_job_retry_view(api_client, admin_user):
+    api_client.force_authenticate(user=admin_user)
+    # Non-existent
+    resp = api_client.post("/admin/jobs/00000000-0000-0000-0000-000000000000/retry/")
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+    # Not failed
+    job = Job.objects.create(
+        module_slug="cisco-asa-parser",
+        status=JobStatus.COMPLETED,
+        normalized_hash="hash5",
+    )
+    resp = api_client.post(f"/admin/jobs/{job.id}/retry/")
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+
+    # Failed job retry
+    job.status = JobStatus.FAILED
+    job.request_json = {"config": "access-list T extended permit ip any any"}
+    job.save()
+    resp = api_client.post(f"/admin/jobs/{job.id}/retry/")
+    assert resp.status_code == status.HTTP_200_OK
+    job.refresh_from_db()
+    # In eager Celery mode, execute_job_task.delay() runs synchronously and completes
+    assert job.status == JobStatus.COMPLETED

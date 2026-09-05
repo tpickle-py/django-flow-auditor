@@ -79,3 +79,45 @@ def test_diff_flows_rename_detection():
     assert rename["old_acl"] == "OLD_ACL"
     assert rename["new_acl"] == "NEW_ACL"
     assert rename["change_type"] == "rename"
+
+
+def test_group_by_acl():
+    from flow_auditor.services.flowdiff import group_by_acl
+
+    flows = [
+        {
+            "acl": "ACL1",
+            "action": "permit",
+            "source": ["10.0.0.1/32"],
+            "dest": ["1.1.1.1/32"],
+            "services": ["tcp/80"],
+        },
+        {
+            "acl": "ACL1",
+            "action": "permit",
+            "source": ["10.0.0.2/32"],
+            "dest": ["1.1.1.1/32"],
+            "services": ["tcp/443"],
+        },
+    ]
+    grouped = group_by_acl(flows)
+    assert len(grouped) == 1
+    assert len(grouped[0]["source"]) == 2
+    assert len(grouped[0]["rules"]) == 2
+
+
+def test_diff_flows_unchanged():
+    flows = [
+        {
+            "acl": "ACL1",
+            "action": "permit",
+            "source": ["10.0.0.1/32"],
+            "dest": ["1.1.1.1/32"],
+            "services": ["tcp/80"],
+            "line": "l1",
+        }
+    ]
+    diff = diff_flows(flows, flows)
+    assert diff["summary"]["total_changes"] == 0
+    assert diff["summary"]["access_granted"] == 0
+    assert diff["summary"]["access_revoked"] == 0

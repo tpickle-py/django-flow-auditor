@@ -36,7 +36,9 @@ class JobListView(ListCreateAPIView):
         qs = Job.objects.all()
         status_param = self.request.query_params.get("status")
         module_param = self.request.query_params.get("module")
-        tenant_param = self.request.query_params.get("tenantId")
+        tenant_param = self.request.query_params.get("tenantId") or self.request.query_params.get(
+            "tenant"
+        )
 
         if status_param:
             qs = qs.filter(status=status_param)

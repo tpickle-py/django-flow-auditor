@@ -9,6 +9,7 @@ SECRET_KEY = "test-secret-key-for-django-flow-auditor"
 DEBUG = True
 
 INSTALLED_APPS = [
+    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

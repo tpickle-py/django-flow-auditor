@@ -100,6 +100,13 @@ Execute the complete pytest test suite:
 ```bash
 uv run pytest
 ```
+*Note: Test coverage is automatically evaluated with `pytest-cov` and requires minimum 80% total coverage.*
+
+Generate HTML coverage report:
+```bash
+uv run pytest --cov-report=html
+```
+
 Run specific module tests:
 ```bash
 uv run pytest tests/test_cisco_asa.py

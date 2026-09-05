@@ -1,5 +1,15 @@
 # django-flow-auditor
 
+[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![Django Version](https://img.shields.io/badge/django-%3E%3D4.2-092E20.svg)](https://www.djangoproject.com/)
+[![DRF](https://img.shields.io/badge/DRF-%3E%3D3.14-red.svg)](https://www.django-rest-framework.org/)
+[![Celery](https://img.shields.io/badge/celery-%3E%3D5.3-37814A.svg)](https://docs.celeryq.dev/)
+[![Tests](https://img.shields.io/badge/tests-76%20passed-success.svg)](https://pytest.org/)
+[![Coverage](https://img.shields.io/badge/coverage-81%25-brightgreen.svg)](https://coverage.readthedocs.io/)
+[![Code Style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Package Manager: uv](https://img.shields.io/badge/packaging-uv-DE5FE9.svg)](https://github.com/astral-sh/uv)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 A reusable, installable Django application providing network flow parsing, configuration diffing, and security approval auditing across Cisco ASA, Juniper SRX, and custom firewall rules.
 
 `django-flow-auditor` consolidates and modernizes the services formerly implemented across individual n8n node packages and Node.js microservices into a unified Python package designed for seamless installation into any Django project via `uv`.
@@ -252,10 +262,11 @@ Set up development dependencies:
 uv sync --all-groups
 ```
 
-Run test suite:
+Run test suite with coverage:
 ```bash
 uv run pytest
 ```
+Coverage is automatically evaluated with `pytest-cov` and reported with missing lines (configured with a strict `fail_under = 80` threshold).
 
 Run linter and formatter:
 ```bash

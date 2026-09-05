@@ -65,7 +65,31 @@ def test_cisco_asa_parse_objects():
 name 10.1.1.1 MY_HOST
 object network NET1
  host 172.16.0.1
+object network RANGE_NET
+ range 10.0.0.1 10.0.0.3
+object service SRV1
+ service tcp destination eq 8080
+object-group network G_NET
+ network-object host 10.2.2.2
+ network-object 192.168.0.0 255.255.0.0
+ group-object NET1
+object-group service G_SRV
+ port-object range 2000 2002
 """
     objs = parse_objects(cfg)
     assert objs["nameMap"]["MY_HOST"] == "10.1.1.1"
     assert "NET1" in objs["networkObjects"]
+    assert "G_NET" in objs["networkObjects"]
+    assert "G_SRV" in objs["serviceObjects"]
+
+
+def test_cisco_asa_icmp_and_ranges():
+    cfg = """
+access-list TEST extended permit icmp any any echo
+access-list TEST extended deny ip host 1.1.1.1 host 2.2.2.2 inactive
+access-list TEST standard permit host 10.10.10.10
+"""
+    flows = parse_asa_config(cfg, {"includeRaw": True})
+    assert len(flows) >= 2
+    icmp_flow = flows[0]
+    assert "icmp/8" in icmp_flow["services"]
