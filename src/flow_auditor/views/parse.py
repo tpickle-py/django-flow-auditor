@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import time
 import uuid
+from typing import Any
 
 from django.utils import timezone
 from rest_framework import status
@@ -12,7 +13,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from flow_auditor.conf import get_setting
+from flow_auditor.conf import get_permission_classes, get_setting
 from flow_auditor.models import ActorType, Job, JobEvent, JobStatus
 from flow_auditor.serializers.parse import ParseRequestSerializer
 from flow_auditor.services.registry import execute_module, get_default_registry
@@ -21,6 +22,9 @@ from flow_auditor.tasks import execute_job_task
 
 class ParseAPIView(APIView):
     """API view to parse or audit firewall rules with a specified adapter module."""
+
+    def get_permissions(self) -> list[Any]:
+        return [permission() for permission in get_permission_classes(admin=False)]
 
     def post(self, request: Request, module: str) -> Response:
         registry = get_default_registry()

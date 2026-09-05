@@ -96,9 +96,24 @@ def test_job_cancellation(api_client):
     assert job.status == JobStatus.CANCELLED
 
 
+@pytest.fixture
+def admin_user(db):
+    from django.contrib.auth.models import User
+
+    return User.objects.create_superuser(
+        username="admin", password="password", email="admin@example.com"
+    )
+
+
 @pytest.mark.django_db
-def test_admin_stats_view(api_client):
+def test_admin_stats_view(api_client, admin_user):
     url = "/admin/stats/"
+    # Unauthenticated should be 403 Forbidden
+    unauth_resp = api_client.get(url)
+    assert unauth_resp.status_code == status.HTTP_403_FORBIDDEN
+
+    # Authenticated staff user should be 200 OK
+    api_client.force_authenticate(user=admin_user)
     response = api_client.get(url)
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -106,8 +121,9 @@ def test_admin_stats_view(api_client):
 
 
 @pytest.mark.django_db
-def test_admin_retention_trigger(api_client):
+def test_admin_retention_trigger(api_client, admin_user):
     url = "/admin/retention/trigger/"
+    api_client.force_authenticate(user=admin_user)
     response = api_client.post(url, {"days": 30}, format="json")
     assert response.status_code == status.HTTP_200_OK
     assert response.json()["success"] is True

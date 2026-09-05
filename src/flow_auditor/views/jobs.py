@@ -13,6 +13,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from flow_auditor.conf import get_permission_classes
 from flow_auditor.models import ActorType, Job, JobEvent, JobStatus
 from flow_auditor.serializers.jobs import (
     JobDetailSerializer,
@@ -27,6 +28,9 @@ class JobListView(ListCreateAPIView):
     """List jobs with filtering, or submit a new background job."""
 
     serializer_class = JobDetailSerializer
+
+    def get_permissions(self) -> list[Any]:
+        return [permission() for permission in get_permission_classes(admin=False)]
 
     def get_queryset(self) -> Any:
         qs = Job.objects.all()
@@ -145,9 +149,15 @@ class JobDetailView(RetrieveAPIView):
     queryset = Job.objects.all()
     serializer_class = JobDetailSerializer
 
+    def get_permissions(self) -> list[Any]:
+        return [permission() for permission in get_permission_classes(admin=False)]
+
 
 class JobCancelView(APIView):
     """Request cancellation of an active or queued job."""
+
+    def get_permissions(self) -> list[Any]:
+        return [permission() for permission in get_permission_classes(admin=False)]
 
     def post(self, request: Request, pk: str) -> Response:
         try:
@@ -209,6 +219,9 @@ class JobCancelView(APIView):
 
 class JobEventsView(APIView):
     """Retrieve audit timeline events for a given job."""
+
+    def get_permissions(self) -> list[Any]:
+        return [permission() for permission in get_permission_classes(admin=False)]
 
     def get(self, request: Request, pk: str) -> Response:
         try:
