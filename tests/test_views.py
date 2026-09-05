@@ -231,5 +231,35 @@ def test_admin_job_retry_view(api_client, admin_user):
     resp = api_client.post(f"/admin/jobs/{job.id}/retry/")
     assert resp.status_code == status.HTTP_200_OK
     job.refresh_from_db()
-    # In eager Celery mode, execute_job_task.delay() runs synchronously and completes
     assert job.status == JobStatus.COMPLETED
+
+
+@pytest.mark.django_db
+def test_parse_view_errors(api_client):
+    # Unknown module
+    resp = api_client.post("/parse/unknown-module/", {"config": "test"}, format="json")
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+    # Invalid request body (missing config)
+    resp2 = api_client.post("/parse/cisco-asa-parser/", {}, format="json")
+    assert resp2.status_code == status.HTTP_400_BAD_REQUEST
+
+    # Parse exception in sync execution
+    resp3 = api_client.post("/parse/flowdiff/", {"config": "{}"}, format="json")
+    assert resp3.status_code == status.HTTP_400_BAD_REQUEST
+    assert resp3.json()["error"]["code"] == "PARSE_ERROR"
+
+
+@pytest.mark.django_db
+def test_job_submit_validation_and_not_found(api_client):
+    # Invalid serializer body
+    resp = api_client.post("/jobs/", {}, format="json")
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+
+    # Unknown module
+    resp2 = api_client.post(
+        "/jobs/",
+        {"module": "unknown-module", "config": "test"},
+        format="json",
+    )
+    assert resp2.status_code == status.HTTP_404_NOT_FOUND

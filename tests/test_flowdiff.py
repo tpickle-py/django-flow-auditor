@@ -121,3 +121,72 @@ def test_diff_flows_unchanged():
     assert diff["summary"]["total_changes"] == 0
     assert diff["summary"]["access_granted"] == 0
     assert diff["summary"]["access_revoked"] == 0
+
+
+def test_diff_flows_collapse_and_ignore():
+    flows_a = [
+        {
+            "acl": "ACL1",
+            "action": "permit",
+            "source": ["10.0.0.1/32"],
+            "dest": ["1.1.1.1/32"],
+            "services": ["tcp/80"],
+        },
+        {
+            "acl": "IGNORE_ME",
+            "action": "permit",
+            "source": ["10.0.0.1/32"],
+            "dest": ["1.1.1.1/32"],
+            "services": ["tcp/80"],
+        },
+    ]
+    flows_b = [
+        {
+            "acl": "ACL1",
+            "action": "permit",
+            "source": ["10.0.0.1/32"],
+            "dest": ["1.1.1.1/32"],
+            "services": ["tcp/443"],
+        },
+        {
+            "acl": "IGNORE_ME",
+            "action": "permit",
+            "source": ["10.0.0.1/32"],
+            "dest": ["1.1.1.1/32"],
+            "services": ["tcp/8080"],
+        },
+    ]
+    diff = diff_flows(
+        flows_a,
+        flows_b,
+        {
+            "collapse": True,
+            "ignoreAcls": ["^IGNORE_"],
+        },
+    )
+    # IGNORE_ME changes should be filtered out
+    assert all("IGNORE_ME" not in c.get("acl", "") for c in diff["changes"])
+    # Collapsed changes
+    assert len(diff["changes"]) >= 2
+
+
+def test_diff_flows_unresolved_modes():
+    flows_a = [
+        {
+            "acl": "ACL1",
+            "action": "permit",
+            "source": ["unresolved:OBJ1"],
+            "dest": ["1.1.1.1/32"],
+            "services": ["tcp/80"],
+        }
+    ]
+    flows_b = []
+
+    # Segregate mode
+    diff_seg = diff_flows(flows_a, flows_b, {"unresolvedMode": "segregate"})
+    assert "unresolved" in diff_seg
+    assert len(diff_seg["unresolved"]) == 1
+
+    # Exclude mode
+    diff_exc = diff_flows(flows_a, flows_b, {"unresolvedMode": "exclude"})
+    assert len(diff_exc["changes"]) == 0

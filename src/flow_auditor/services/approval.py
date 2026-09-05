@@ -78,22 +78,24 @@ def match_single_service(
         elif cand_proto != appr_proto:
             return False
 
-    appr_port = appr_svc.get("port")
     cand_port = cand_svc.get("port")
-
-    if appr_port == "any" or appr_port is None:
-        return True
-    if cand_port == "any" or cand_port is None:
-        return False
+    appr_port = appr_svc.get("port")
 
     # Check port range
     if "start_port" in appr_svc and "end_port" in appr_svc:
         start_p = appr_svc["start_port"]
         end_p = appr_svc["end_port"]
+        if cand_port == "any" or cand_port is None:
+            return False
         if isinstance(cand_port, int):
             return start_p <= cand_port <= end_p
         if isinstance(cand_port, str) and cand_port.isdigit():
             return start_p <= int(cand_port) <= end_p
+        return False
+
+    if appr_port == "any" or appr_port is None:
+        return True
+    if cand_port == "any" or cand_port is None:
         return False
 
     return str(cand_port).lower() == str(appr_port).lower()

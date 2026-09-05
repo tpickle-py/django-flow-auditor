@@ -11,6 +11,7 @@ from flow_auditor.common.ip_utils import (
     ip_in_cidr,
     ip_to_int,
     is_ip,
+    mask_for,
     mask_to_cidr,
     parse_cidr,
     range_to_cidrs,
@@ -89,3 +90,53 @@ def test_enclosing_supernet():
 def test_count_addresses():
     assert count_addresses(["10.0.0.0/24"]) == 256
     assert count_addresses(["10.0.0.0/24", "192.168.1.0/24"]) == 512
+
+
+def test_ip_utils_boundary_and_invalid_inputs():
+    # Invalid mask_to_cidr
+    assert mask_to_cidr("255.255.255") is None
+    assert mask_to_cidr("256.0.0.0") is None
+    assert mask_to_cidr("abc.def.ghi.jkl") is None
+
+    # Invalid ip_to_int
+    with pytest.raises(ValueError):
+        ip_to_int("1.2.3.4.5")
+    with pytest.raises(ValueError):
+        ip_to_int("1.2.3.300")
+    with pytest.raises(ValueError):
+        ip_to_int("1.2.3.abc")
+
+    # Aggregate CIDRs empty and non-contiguous runs
+    assert aggregate_cidrs([], 24) == []
+    non_contig = aggregate_cidrs(["10.0.0.0/24", "10.0.2.0/24"], 24)
+    assert len(non_contig) == 2
+
+    # Enclosing supernet empty
+    assert enclosing_supernet([]) == "0.0.0.0/0"
+
+    # Full 0 to 2^32-1 range and inverted range
+    all_ip = range_to_cidrs(0, 0xFFFFFFFF)
+    assert all_ip == ["0.0.0.0/0"]
+    assert range_to_cidrs(100, 50) == []
+
+    # Large range aggregation (preventing memory leaks/blowups)
+    assert aggregate_cidrs(["0.0.0.0/0"], 24) == ["0.0.0.0/0"]
+    assert aggregate_cidrs(["10.0.0.0/8"], 16) == ["10.0.0.0/8"]
+    assert aggregate_cidrs(["10.0.0.0/24", "10.0.1.0/24"], 24) == ["10.0.0.0/23"]
+
+    # mask_for prefix checks
+    assert mask_for(0) == 0
+    assert mask_for(24) == 0xFFFFFF00
+    assert mask_for(32) == 0xFFFFFFFF
+
+    # Non-contiguous mask returns None
+    assert mask_to_cidr("255.0.255.0") is None
+
+    # Invalid ip_in_cidr returns False
+    assert ip_in_cidr("not-an-ip", "10.0.0.0/24") is False
+
+    # Invalid CIDR prefix and non-IPv4
+    with pytest.raises(ValueError):
+        parse_cidr("10.0.0.0/35")
+    with pytest.raises(ValueError):
+        parse_cidr("2001:db8::/32")

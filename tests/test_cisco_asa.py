@@ -93,3 +93,71 @@ access-list TEST standard permit host 10.10.10.10
     assert len(flows) >= 2
     icmp_flow = flows[0]
     assert "icmp/8" in icmp_flow["services"]
+
+
+def test_cisco_asa_advanced_service_and_network_features():
+    cfg = """
+object network FQDN_TEST
+ fqdn v4 api.example.com
+ description FQDN object
+object service SRV_OPS
+ service tcp destination neq 22
+ service udp destination gt 1024
+ service tcp destination range 8000 8080
+object-group service MIXED_GRP
+ port-object eq 80
+ port-object range 443 445
+ port-object gt 8080
+ service-object tcp destination eq 9000
+object-group protocol PROTO_GRP
+ protocol-object tcp
+ protocol-object ospf
+object-group icmp-type ICMP_GRP
+ icmp-object echo
+ icmp-object echo-reply
+
+access-list ADV extended permit object-group MIXED_GRP any any
+access-list ADV extended permit tcp any eq 443 any eq 8443
+access-list ADV extended permit esp any any
+access-list ADV extended permit 88 any any
+access-list ADV extended permit icmp any any
+access-list ADV extended permit icmp6 any any
+"""
+    flows = parse_asa_config(cfg, {"includeObjects": True})
+    assert "flows" in flows
+    assert "objects" in flows
+    assert len(flows["flows"]) >= 6
+
+
+def test_cisco_asa_command_mode_collapse():
+    cfg = """
+access-list OUT line 1 extended permit tcp any any object-group G_SRV (hitcnt=10) 0x11111111
+  access-list OUT line 1 extended permit tcp any any eq 80 (hitcnt=6) 0x22222222
+  access-list OUT line 1 extended permit tcp any any eq 443 (hitcnt=4) 0x33333333
+"""
+    flows = parse_asa_config(cfg, {"mode": "command"})
+    assert len(flows) == 1
+    f = flows[0]
+    assert f["hitcnt"] == 10
+    assert "tcp/80" in f["services"]
+    assert "tcp/443" in f["services"]
+
+
+def test_cisco_asa_object_proto_and_direct_port():
+    cfg = """
+object service S_HTTP
+ service tcp destination eq 80
+object-group network G_NET
+ network-object host 10.1.1.1
+ network-object host 10.1.1.2
+
+access-list OUT extended permit object S_HTTP any any
+access-list OUT extended permit tcp any any 443
+access-list OUT extended permit tcp object-group G_NET object-group G_NET eq 8080
+"""
+    flows = parse_asa_config(cfg)
+    assert len(flows) == 3
+    assert flows[0]["services"] == ["tcp/80"]
+    assert flows[1]["services"] == ["tcp/443"]
+    assert len(flows[2]["source"]) == 2
+    assert len(flows[2]["dest"]) == 2

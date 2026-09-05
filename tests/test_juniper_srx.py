@@ -62,6 +62,44 @@ set security policies from-zone DMZ to-zone TRUST policy P1 then permit
 def test_juniper_parse_objects():
     cfg = """
 set security address-book global address S1 1.1.1.1/32
+set security address-book global address-set GSET address S1
+set security zones security-zone TRUST address-book address Z1 192.168.10.1
+set security zones security-zone TRUST address-book address-set ZSET address Z1
+set applications application CUSTOM-APP protocol tcp destination-port 8080
+set applications application-set APP-SET application CUSTOM-APP
 """
     objs = parse_objects(cfg)
     assert "S1" in objs["globalBook"]
+    assert "set:GSET" in objs["globalBook"]
+    assert "trust" in objs["zoneBooks"]
+    assert "CUSTOM-APP" in objs["resolvedApps"]
+    assert "APP-SET" in objs["appSets"]
+
+
+def test_juniper_advanced_policy_features():
+    cfg = """
+security {
+    policies {
+        from-zone TRUST to-zone UNTRUST {
+            policy REJECT-TEST {
+                description "Reject all other traffic";
+                match {
+                    source-address [ any ];
+                    destination-address [ any ];
+                    application [ junos-ssh junos-telnet ];
+                }
+                then {
+                    reject;
+                }
+            }
+        }
+    }
+}
+"""
+    flows = parse_config(cfg, {"includeRaw": "false"})
+    assert len(flows) == 1
+    f = flows[0]
+    assert f["action"] == "deny"
+    assert f["description"] == '"Reject all other traffic"'
+    assert "tcp/22" in f["services"]
+    assert "tcp/23" in f["services"]

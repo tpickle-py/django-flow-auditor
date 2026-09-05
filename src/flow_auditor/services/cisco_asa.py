@@ -508,8 +508,15 @@ def parse_ace(
 
     # Optional source port
     if i < len(toks) and toks[i] in ("eq", "range", "gt", "lt", "neq"):
-        _, i = parse_port_spec(toks, i, proto)
-    elif i < len(toks) and toks[i] == "object-group":
+        _, next_i = parse_port_spec(toks, i, proto)
+        if next_i < len(toks):
+            i = next_i
+    elif (
+        i + 1 < len(toks)
+        and toks[i] == "object-group"
+        and toks[i + 1] in service_objects
+        and i + 2 < len(toks)
+    ):
         i += 2
 
     dst_addrs, i = parse_endpoint(toks, i, network_objects, name_map)

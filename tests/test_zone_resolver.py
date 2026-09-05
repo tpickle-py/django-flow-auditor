@@ -25,3 +25,15 @@ def test_zone_any_resolver_no_match():
     out = process_items(items, {"zoneRules": rules})
     assert out[0]["src_ip"] == "0.0.0.0/0"
     assert out[0]["_zoneMatch"] is False
+
+
+def test_zone_any_resolver_list_and_regex_error():
+    rules = [
+        {"match": {"acl": "[invalid(regex"}, "srcAny": ["10.0.0.0/8"]},
+        {"match": {"acl": "LAN.*"}, "srcAny": ["192.168.0.0/16"], "dstAny": None},
+    ]
+    items = [{"acl": "LAN_1", "src_ip": ["any", "10.1.1.1"], "dst_ip": ["any"]}]
+    out = process_items(items, {"zoneRules": rules})
+    assert "192.168.0.0/16" in out[0]["src_ip"][0]
+    assert out[0]["src_ip"][1] == "10.1.1.1"
+    assert out[0]["dst_ip"][0] == "0.0.0.0/0"

@@ -1,86 +1,45 @@
-"""IP and CIDR utilities for firewall rules and flow auditing."""
+"""IP and CIDR utilities for firewall rules and flow auditing using netaddr."""
 
 from __future__ import annotations
 
-import math
 import re
+
+import netaddr
 
 IP_REGEX = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
 
 def is_ip(s: str | None) -> bool:
     """Return True if s is a valid IPv4 string format."""
-    if not s:
+    if not s or not isinstance(s, str):
         return False
-    parts = s.strip().split(".")
-    if len(parts) != 4:
-        return False
-    for p in parts:
-        if not p.isdigit():
-            return False
-        n = int(p)
-        if n < 0 or n > 255:
-            return False
-    return True
+    return netaddr.valid_ipv4(s.strip())
 
 
 def ip_to_int(ip: str) -> int:
     """Parse an IPv4 address string into a 32-bit unsigned integer."""
-    parts = ip.strip().split(".")
-    if len(parts) != 4:
+    if not is_ip(ip):
         raise ValueError(f"Invalid IP address: '{ip}'")
-    acc = 0
-    for octet in parts:
-        try:
-            n = int(octet)
-        except ValueError as err:
-            raise ValueError(f"Invalid IP octet in: '{ip}'") from err
-        if n < 0 or n > 255:
-            raise ValueError(f"Invalid IP octet in: '{ip}'")
-        acc = (acc * 256 + n) & 0xFFFFFFFF
-    return acc
+    return int(netaddr.IPAddress(ip.strip(), 4))
 
 
 def int_to_ip(i: int) -> str:
     """Convert a 32-bit unsigned integer to an IPv4 dotted string."""
-    return f"{(i >> 24) & 0xFF}.{(i >> 16) & 0xFF}.{(i >> 8) & 0xFF}.{i & 0xFF}"
+    return str(netaddr.IPAddress(i & 0xFFFFFFFF, 4))
 
 
 def mask_to_cidr(mask: str) -> int | None:
     """Convert a subnet mask (or wildcard mask) to a CIDR prefix length."""
-    parts = mask.strip().split(".")
-    if len(parts) != 4:
+    if not isinstance(mask, str) or not netaddr.valid_ipv4(mask.strip()):
         return None
-    try:
-        int_parts = [int(p) for p in parts]
-    except ValueError:
-        return None
-    if any(p < 0 or p > 255 for p in int_parts):
-        return None
-
-    n = (
-        (int_parts[0] << 24) | (int_parts[1] << 16) | (int_parts[2] << 8) | int_parts[3]
-    ) & 0xFFFFFFFF
-
-    if n == 0:
+    ip = netaddr.IPAddress(mask.strip(), 4)
+    if ip.value == 0:
         return 0
-
-    # If it's a standard subnet mask (leading 1s)
-    if (n >> 31) & 1:
-        c = 0
-        for i in range(31, -1, -1):
-            if (n >> i) & 1:
-                c += 1
-            else:
-                break
-        return c
-
-    # Wildcard mask check (leading 0s followed by 1s)
-    zeros = 0
-    for i in range(32):
-        if not ((n >> i) & 1):
-            zeros += 1
-    return zeros
+    if ip.is_netmask():
+        return ip.netmask_bits()
+    if ip.is_hostmask():
+        return netaddr.IPAddress(ip.value ^ 0xFFFFFFFF, 4).netmask_bits()
+    return None
 
 
 def mask_for(prefix: int) -> int:
@@ -89,57 +48,50 @@ def mask_for(prefix: int) -> int:
         return 0
     if prefix >= 32:
         return 0xFFFFFFFF
-    return (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF
+    return int(netaddr.IPNetwork(f"0.0.0.0/{prefix}").netmask.value)
 
 
 def parse_cidr(s: str) -> tuple[int, int]:
     """Parse a CIDR or bare IP into (base_ip_int, prefix_len)."""
     s = s.strip()
-    if "/" in s:
-        ip_str, prefix_str = s.split("/", 1)
-        prefix = int(prefix_str)
-        if prefix < 0 or prefix > 32:
-            raise ValueError(f"Invalid prefix length in CIDR: '{s}'")
-        return ip_to_int(ip_str), prefix
-    return ip_to_int(s), 32
+    try:
+        net = netaddr.IPNetwork(s)
+        if net.version != 4:
+            raise ValueError(f"Not an IPv4 CIDR: '{s}'")
+        return int(net.network), net.prefixlen
+    except Exception as err:
+        raise ValueError(f"Invalid CIDR format: '{s}'") from err
 
 
 def cidr_range(base_int: int, prefix: int) -> tuple[int, int]:
     """Return (start_int, end_int) for a given base and prefix."""
-    mask = mask_for(prefix)
-    start = base_int & mask
-    end = (start + (1 << (32 - prefix)) - 1) & 0xFFFFFFFF
-    return start, end
+    net = netaddr.IPNetwork(f"{int_to_ip(base_int)}/{prefix}")
+    return int(net.first), int(net.last)
 
 
 def ip_in_cidr(ip: str, cidr: str) -> bool:
     """Return True if ip falls within the network described by cidr."""
     normalized = cidr.strip().lower()
-    if normalized == "any" or normalized == "0.0.0.0/0":
+    if normalized in ("any", "0.0.0.0/0"):
         return True
-    base_int, prefix = parse_cidr(normalized)
-    ip_int = ip_to_int(ip)
-    mask = mask_for(prefix)
-    return (ip_int & mask) == (base_int & mask)
+    try:
+        net = netaddr.IPNetwork(normalized)
+        addr = netaddr.IPAddress(ip.strip())
+        return addr in net
+    except Exception:
+        return False
 
 
 def range_to_cidrs(start: int, end: int) -> list[str]:
     """Convert an inclusive IP int range [start, end] into a minimal list of CIDRs."""
-    res = []
-    cur = start & 0xFFFFFFFF
+    start = start & 0xFFFFFFFF
     end = end & 0xFFFFFFFF
-    while cur <= end:
-        max_size_align = cur & -cur
-        if max_size_align != 0:
-            max_len_align = 32 - int(math.floor(math.log2(max_size_align)))
-        else:
-            max_len_align = 0
-        remaining = end - cur + 1
-        max_len_remain = 32 - int(math.floor(math.log2(remaining)))
-        prefix = max(max_len_align, max_len_remain)
-        res.append(f"{int_to_ip(cur)}/{prefix}")
-        cur = (cur + (1 << (32 - prefix))) & 0xFFFFFFFF
-    return res
+    if start > end:
+        return []
+    return [
+        str(c)
+        for c in netaddr.iprange_to_cidrs(netaddr.IPAddress(start, 4), netaddr.IPAddress(end, 4))
+    ]
 
 
 def aggregate_cidrs(cidr_strings: list[str], prefix_len: int) -> list[str]:
@@ -147,34 +99,35 @@ def aggregate_cidrs(cidr_strings: list[str], prefix_len: int) -> list[str]:
     if not cidr_strings:
         return []
     block_size = 1 << (32 - prefix_len)
-    masked = set()
+    intervals: list[tuple[int, int]] = []
     for s in cidr_strings:
-        base, prefix = parse_cidr(s)
-        start, end = cidr_range(base, prefix)
-        start_block = start // block_size
-        end_block = end // block_size
-        for b in range(start_block, end_block + 1):
-            masked.add((b * block_size) & 0xFFFFFFFF)
+        net = netaddr.IPNetwork(s.strip())
+        start = int(net.first)
+        end = int(net.last)
+        start_aligned = (start // block_size) * block_size
+        end_aligned = min(0xFFFFFFFF, (end // block_size) * block_size + block_size - 1)
+        intervals.append((start_aligned, end_aligned))
 
-    arr = sorted(masked)
-    if not arr:
+    if not intervals:
         return []
 
-    runs = []
-    run_start = arr[0]
-    run_prev = arr[0]
-    for v in arr[1:]:
-        if v == (run_prev + block_size) & 0xFFFFFFFF:
-            run_prev = v
-            continue
-        runs.append((run_start, (run_prev + block_size - 1) & 0xFFFFFFFF))
-        run_start = v
-        run_prev = v
-    runs.append((run_start, (run_prev + block_size - 1) & 0xFFFFFFFF))
+    intervals.sort(key=lambda x: x[0])
+    merged: list[tuple[int, int]] = []
+    cur_start, cur_end = intervals[0]
+    for nxt_start, nxt_end in intervals[1:]:
+        if nxt_start <= cur_end + 1:
+            cur_end = max(cur_end, nxt_end)
+        else:
+            merged.append((cur_start, cur_end))
+            cur_start, cur_end = nxt_start, nxt_end
+    merged.append((cur_start, cur_end))
 
-    result = []
-    for r_start, r_end in runs:
-        result.extend(range_to_cidrs(r_start, r_end))
+    result: list[str] = []
+    for s, e in merged:
+        result.extend(
+            str(c)
+            for c in netaddr.iprange_to_cidrs(netaddr.IPAddress(s, 4), netaddr.IPAddress(e, 4))
+        )
     return result
 
 
@@ -182,28 +135,10 @@ def enclosing_supernet(cidr_list: list[str]) -> str:
     """Find the smallest enclosing supernet containing all CIDRs in cidr_list."""
     if not cidr_list:
         return "0.0.0.0/0"
-    min_ip = 0xFFFFFFFF
-    max_ip = 0
-    for s in cidr_list:
-        base, prefix = parse_cidr(s)
-        start, end = cidr_range(base, prefix)
-        if start < min_ip:
-            min_ip = start
-        if end > max_ip:
-            max_ip = end
-
-    for prefix in range(32, -1, -1):
-        mask = mask_for(prefix)
-        if (min_ip & mask) == (max_ip & mask):
-            net = min_ip & mask
-            return f"{int_to_ip(net)}/{prefix}"
-    return "0.0.0.0/0"
+    networks = [netaddr.IPNetwork(s.strip()) for s in cidr_list]
+    return str(netaddr.spanning_cidr(networks))
 
 
 def count_addresses(cidr_list: list[str]) -> int:
     """Return total number of addresses represented by cidr_list."""
-    total = 0
-    for s in cidr_list:
-        _, prefix = parse_cidr(s)
-        total += 1 << (32 - prefix)
-    return total
+    return sum(len(netaddr.IPNetwork(s.strip())) for s in cidr_list)

@@ -289,7 +289,7 @@ def diff_flows(
     """Diff two parsed flow lists (flows_a = before, flows_b = after)."""
     opts = options or {}
     do_detect_renames = opts.get("detectRenames", True)
-    ignore_filter = build_ignore_filter(opts.get("ignorePatterns"))
+    ignore_filter = build_ignore_filter(opts.get("ignorePatterns") or opts.get("ignoreAcls"))
     collapse = opts.get("collapse", False)
     unresolved_mode = opts.get("unresolvedMode", "include")  # "include", "exclude", "segregate"
     max_peers = opts.get("maxPeers", 5)

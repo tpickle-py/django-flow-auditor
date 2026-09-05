@@ -130,3 +130,28 @@ def test_deliver_webhook_task(monkeypatch):
     assert len(called) == 1
     assert job.webhook_attempts == 1
     assert job.first_webhook_retrieved_at is not None
+
+    # Missing job returns None
+    deliver_webhook_task("00000000-0000-0000-0000-000000000000")
+
+    # Job without webhook_url returns None
+    job_no_hook = Job.objects.create(
+        module_slug="cisco-asa-parser",
+        status=JobStatus.COMPLETED,
+        normalized_hash="h6",
+    )
+    deliver_webhook_task(str(job_no_hook.id))
+
+
+@pytest.mark.django_db
+def test_execute_job_task_edge_cases():
+    # Missing job returns None
+    execute_job_task("00000000-0000-0000-0000-000000000000")
+
+    # Already completed job returns early
+    job = Job.objects.create(
+        module_slug="cisco-asa-parser",
+        status=JobStatus.COMPLETED,
+        normalized_hash="h7",
+    )
+    execute_job_task(str(job.id))
