@@ -1,0 +1,31 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Testing & Linting
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build & Packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# SQLite test database
+*.sqlite3
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
