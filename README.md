@@ -31,17 +31,82 @@ A reusable, installable Django application providing network flow parsing, confi
 
 ## Installation
 
-Install `django-flow-auditor` into your Django project using `uv`:
+Because `django-flow-auditor` is maintained as a direct git dependency (prior to any PyPI publication), you can install it directly into any host project from GitHub or your self-hosted GitLab instance.
 
+### Option 1: Install from GitHub (Recommended)
+
+Using `uv`:
 ```bash
-uv add git+https://gitlab.travispickle.work/tpickle/django-flow-auditor.git
+# Latest main branch
+uv add git+https://github.com/tpickle-py/django-flow-auditor.git
+
+# Or pinned to a specific branch, release tag, or commit hash
+uv add "git+https://github.com/tpickle-py/django-flow-auditor.git@main"
+uv add "git+https://github.com/tpickle-py/django-flow-auditor.git@v1.0.0"
 ```
 
-Or with standard `pip`:
+In your project's `pyproject.toml` (PEP 508 / PEP 621):
+```toml
+[project]
+dependencies = [
+    "django-flow-auditor @ git+https://github.com/tpickle-py/django-flow-auditor.git@main",
+]
+```
 
+Using standard `pip`:
+```bash
+pip install git+https://github.com/tpickle-py/django-flow-auditor.git
+```
+
+In a standard `requirements.txt`:
+```text
+git+https://github.com/tpickle-py/django-flow-auditor.git@main#egg=django-flow-auditor
+```
+
+### Option 2: Install from Self-Hosted GitLab
+
+Using `uv`:
+```bash
+# HTTPS
+uv add git+https://gitlab.travispickle.work/tpickle/django-flow-auditor.git
+
+# SSH (using existing SSH keys)
+uv add git+ssh://git@gitlab.travispickle.work/tpickle/django-flow-auditor.git
+
+# With GitLab Personal Access Token (CI/CD or automated pipelines)
+uv add git+https://oauth2:<PERSONAL_ACCESS_TOKEN>@gitlab.travispickle.work/tpickle/django-flow-auditor.git
+```
+
+Using standard `pip`:
 ```bash
 pip install git+https://gitlab.travispickle.work/tpickle/django-flow-auditor.git
 ```
+
+---
+
+### Dual-Remote Development Workflow (GitHub + GitLab)
+
+If you maintain this repository across both GitHub and your private GitLab instance, both remotes are configured in this repo:
+
+```bash
+# View configured remotes
+git remote -v
+# origin  https://github.com/tpickle-py/django-flow-auditor.git (fetch & push)
+# gitlab  https://gitlab.travispickle.work/tpickle/django-flow-auditor.git (fetch & push)
+
+# Push to GitHub
+git push origin main
+
+# Push to GitLab
+git push gitlab main
+```
+
+> **Tip:** You can configure Git to push to both remotes in a single command:
+> ```bash
+> git remote set-url --add --push origin https://github.com/tpickle-py/django-flow-auditor.git
+> git remote set-url --add --push origin https://gitlab.travispickle.work/tpickle/django-flow-auditor.git
+> git push origin main  # Pushes to both GitHub and GitLab simultaneously
+> ```
 
 ---
 
@@ -266,7 +331,7 @@ Run test suite with coverage:
 ```bash
 uv run pytest
 ```
-Coverage is automatically evaluated with `pytest-cov` and reported with missing lines (configured with a strict `fail_under = 80` threshold).
+Coverage is automatically evaluated with `pytest-cov` and reported with missing lines (configured with a strict `fail_under = 95` threshold).
 
 Run linter and formatter:
 ```bash
